@@ -213,13 +213,14 @@ runs:
         POST_COMMAND=${{inputs.post_deploy_commands}}
         HEALTH_CHECK=${{inputs.enable_health_check}}
         DEPLOYER_SH="php /$DEPLOYER_APP_DIR/bin/init mwp:deployer"
-
-        OPTIONS="--destDir=$DEST_DIR --postDeploymentCommand=$POST_COMMAND"
-        if [ "$HEALTH_CHECK" == "no" ]; then
+        
+        OPTIONS="--destDir=$DEST_DIR"
+        if [ "$HEALTH_CHECK" = "no" ]; then
           OPTIONS="$OPTIONS --skipHealthCheck"
         fi
- 
-        ssh -i "$TEMP_KEY_FILE" -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" $DEPLOYER_SH $TAR_NAME $OPTIONS 
+        
+        ssh -i "$TEMP_KEY_FILE" -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" \
+        "bash -l -c '$DEPLOYER_SH $TAR_NAME \"$OPTIONS\"'"
 
         rm -f $TEMP_KEY_FILE
 
