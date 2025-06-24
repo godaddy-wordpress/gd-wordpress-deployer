@@ -71,11 +71,6 @@ jobs:
 - GitHub Secrets: Ensure the following secrets are configured in your repository:
     - `PRIVATE_KEY`
 
-```bash
-cat ~/.ssh/id_rsa | base64
-```
-Copy the output and configure it as your repository's SSH_PRIVATE_KEY secret. (**Note:** You may have used a different name when creating your key. Please ammend the example to match your case.)
-
 ### For additional troubleshooting:
 
 - Double-check your remote host details.
