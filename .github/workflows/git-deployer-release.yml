@@ -1,0 +1,86 @@
+name: Git Deployer Tag and Release
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to tag (e.g. main)'
+        required: true
+        default: 'main'
+      new_tag:
+        description: 'New version tag (e.g. v1.2.0)'
+        required: true
+      moving_tag:
+        description: 'Moving tag to update (e.g. v1)'
+        required: false
+        default: ''
+      create_release:
+        description: 'Create GitHub release? (yes/no)'
+        required: true
+        default: 'no'
+        options:
+          - 'yes'
+          - 'no'
+      release_title:
+        description: 'Title for the release (if created)'
+        required: false
+        default: ''
+
+jobs:
+  tag-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for tagging and releasing
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Important for full git history
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Create new tag
+        run: |
+          git fetch origin ${{ github.event.inputs.branch }}
+          git checkout ${{ github.event.inputs.branch }}
+          git tag ${{ github.event.inputs.new_tag }}
+          git push origin ${{ github.event.inputs.new_tag }}
+
+      - name: Update moving tag
+        if: ${{ github.event.inputs.moving_tag != '' }}
+        run: |
+          git tag -f ${{ github.event.inputs.moving_tag }} ${{ github.event.inputs.new_tag }}
+          git push -f origin ${{ github.event.inputs.moving_tag }}
+
+      - name: Get previous tag
+        id: prev-tag
+        run: |
+          PREV_TAG=$(git tag --sort=-creatordate | grep -v "${{ github.event.inputs.new_tag }}" | head -n 1)
+          echo "Previous tag: $PREV_TAG"
+          echo "tag=$PREV_TAG" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          if [ -z "${{ steps.prev-tag.outputs.tag }}" ]; then
+            echo "No previous tag found, using initial commit."
+            CHANGELOG=$(git log --pretty=format:"- %s" ${{ github.event.inputs.new_tag }})
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s" ${{ steps.prev-tag.outputs.tag }}..${{ github.event.inputs.new_tag }})
+          fi
+          echo "CHANGELOG<<EOF" >> $GITHUB_ENV
+          echo "$CHANGELOG" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Create GitHub Release with changelog
+        if: ${{ github.event.inputs.create_release == 'yes' }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.new_tag }}
+          name: ${{ github.event.inputs.release_title || github.event.inputs.new_tag }}
+          body: ${{ env.CHANGELOG }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
